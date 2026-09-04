@@ -1,0 +1,78 @@
+# ==============================================================================
+# IBVAP — Intelligent Border Video Analytics Platform
+# Production Docker Compose Orchestration (Phases 1–15)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Backend API & Computer Vision Decision Layer
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ibvap-backend
+    restart: unless-stopped
+    environment:
+      - PROJECT_NAME=IBVAP — Intelligent Border Video Analytics Platform
+      - SECRET_KEY=${SECRET_KEY:-ibvap-secure-super-secret-key-mha-ssb-2026}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      - YOLO_MODEL_NAME=${YOLO_MODEL_NAME:-yolov8n.pt}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.40}
+      - INTRUSION_COOLDOWN_SECONDS=${INTRUSION_COOLDOWN_SECONDS:-5.0}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:80,*}
+    volumes:
+      - evidence_data:/app/evidence
+      - models_data:/app/models
+      - ./ibvap.db:/app/ibvap.db
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ibvap-network
+
+  # ----------------------------------------------------------------------------
+  # Frontend SOC Command Center (Nginx Production Reverse Proxy)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ibvap-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - ibvap-network
+
+# ------------------------------------------------------------------------------
+# Persistent Storage Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  evidence_data:
+    name: ibvap_evidence_data
+  models_data:
+    name: ibvap_models_data
+
+# ------------------------------------------------------------------------------
+# Dedicated Internal Bridge Network
+# ------------------------------------------------------------------------------
+networks:
+  ibvap-network:
+    name: ibvap-network
+    driver: bridge

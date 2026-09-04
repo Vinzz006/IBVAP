@@ -1,0 +1,52 @@
+# ==============================================================================
+# IBVAP — Intelligent Border Video Analytics Platform
+# Development Docker Compose with Hot-Reloading & Live Volume Mounts
+# ==============================================================================
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ibvap-backend-dev
+    restart: unless-stopped
+    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - PROJECT_NAME=IBVAP — Intelligent Border Video Analytics Platform (DEV)
+      - SECRET_KEY=${SECRET_KEY:-ibvap-secure-dev-secret-key-2026}
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000,*
+    volumes:
+      - ./backend:/app/backend
+      - ./evidence:/app/evidence
+      - ./models:/app/models
+      - ./test_videos:/app/test_videos
+      - ./ibvap.db:/app/ibvap.db
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ibvap-dev-network
+
+  frontend:
+    image: node:20-alpine
+    container_name: ibvap-frontend-dev
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ibvap-dev-network
+
+networks:
+  ibvap-dev-network:
+    driver: bridge
