@@ -1,8 +1,10 @@
 import os
+import time
 import shutil
+import asyncio
 from pathlib import Path
+from typing import List, Optional, Dict, Any
 import cv2
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -15,6 +17,8 @@ from backend.services.video_processor import camera_manager
 from backend.api.auth import get_current_user
 
 router = APIRouter(prefix="/cameras", tags=["Cameras"])
+
+_webcam_cache: Dict[str, Any] = {"timestamp": 0.0, "data": None}
 
 class ZoneUpdateRequest(BaseModel):
     polygon: List[List[float]]  # List of [x, y] coordinates
@@ -49,9 +53,7 @@ def list_cameras(db: Session = Depends(get_db)):
         })
     return result
 
-@router.get("/webcams/detect")
-def detect_webcams():
-    """Probes connected webcam devices on the host workstation."""
+def _probe_webcams_sync() -> List[Dict[str, Any]]:
     available = []
     for idx in range(3):
         try:
@@ -82,7 +84,19 @@ def detect_webcams():
             "label": "USB Webcam (Device 0)",
             "status": "READY"
         })
-    return {"webcams": available}
+    return available
+
+@router.get("/webcams/detect")
+async def detect_webcams():
+    """Non-blocking webcam device probe with 30s TTL cache."""
+    now = time.monotonic()
+    if (now - _webcam_cache["timestamp"]) < 30.0 and _webcam_cache["data"] is not None:
+        return {"webcams": _webcam_cache["data"]}
+
+    webcams = await asyncio.to_thread(_probe_webcams_sync)
+    _webcam_cache["timestamp"] = now
+    _webcam_cache["data"] = webcams
+    return {"webcams": webcams}
 
 @router.get("/{camera_id}")
 def get_camera(camera_id: str, db: Session = Depends(get_db)):
@@ -180,21 +194,22 @@ async def upload_video(file: UploadFile = File(...)):
         "message": "Video uploaded successfully and ready for ingestion."
     }
 
-def mjpeg_frame_generator(camera_id: str):
-    """Yields multipart JPEG frames for live browser streaming."""
-    import time
+async def async_mjpeg_frame_generator(camera_id: str):
+    """Async generator delivering encoded MJPEG stream with zero thread blocking and 25 FPS client throttling."""
     last_frame_bytes = None
+    min_frame_interval = 0.04  # max 25 FPS per streaming client
+
     try:
         while True:
             proc = camera_manager.get_camera(camera_id)
-            if proc and proc.latest_frame_bytes is not None:
+            if proc and proc.running:
                 frame = proc.latest_frame_bytes
-                if frame is not last_frame_bytes:
+                if frame is not None and frame is not last_frame_bytes:
                     last_frame_bytes = frame
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            time.sleep(0.05)
-    except (GeneratorExit, Exception):
+            await asyncio.sleep(min_frame_interval)
+    except (asyncio.CancelledError, GeneratorExit):
         pass
 
 @router.get("/{camera_id}/stream")
@@ -205,6 +220,6 @@ def stream_camera(camera_id: str):
         raise HTTPException(status_code=404, detail=f"Camera {camera_id} not running")
 
     return StreamingResponse(
-        mjpeg_frame_generator(camera_id),
+        async_mjpeg_frame_generator(camera_id),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )

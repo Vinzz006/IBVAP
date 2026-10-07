@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+*.db-shm
+*.db-wal
+.env
+evidence/
+.vscode/
+.idea/
