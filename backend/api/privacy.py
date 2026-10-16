@@ -13,6 +13,7 @@ from sqlalchemy import desc
 from backend.config import BASE_DIR, EVIDENCE_DIR
 from backend.database.database import get_db
 from backend.database.models import Event, AuditLog, User, PrivacyPolicy
+from backend.utils.text import put_overlay_text
 
 router = APIRouter(prefix="/privacy", tags=["Privacy & Governance"])
 
@@ -132,7 +133,7 @@ def get_privacy_masked_image(event_id: str, db: Session = Depends(get_db)):
         # Fallback: create synthetic preview
         img = np.zeros((480, 640, 3), dtype=np.uint8)
         img[:] = (30, 35, 45)
-        cv2.putText(img, "PRIVACY MASKED VIEW", (160, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 240, 255), 2)
+        put_overlay_text(img, "PRIVACY MASKED VIEW", (160, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 240, 255), 2)
     else:
         img = cv2.imread(str(file_path))
 
@@ -148,13 +149,13 @@ def get_privacy_masked_image(event_id: str, db: Session = Depends(get_db)):
         blurred_roi = cv2.GaussianBlur(roi, (51, 51), 30)
         img[y1:y2, x1:x2] = blurred_roi
         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 240, 255), 2)
-        cv2.putText(img, "[PRIVACY MASK ACTIVE]", (x1, max(20, y1 - 8)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 240, 255), 1)
+        put_overlay_text(img, "[PRIVACY MASK ACTIVE]", (x1, max(20, y1 - 8)),
+                         cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 240, 255), 1, bg_color=(15, 18, 24), padding=2)
 
     # Stamp privacy banner at bottom
     cv2.rectangle(img, (0, h - 30), (w, h), (15, 18, 24), -1)
-    cv2.putText(img, "PRIVACY PROTECTED VIEW • FACIAL REGIONS ANONYMIZED FOR NON-FORENSIC REVIEW", (15, h - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 240, 255), 1)
+    put_overlay_text(img, "PRIVACY PROTECTED VIEW - FACIAL REGIONS ANONYMIZED FOR NON-FORENSIC REVIEW", (15, h - 10),
+                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 240, 255), 1)
 
     ret, buf = cv2.imencode(".jpg", img)
     if not ret:

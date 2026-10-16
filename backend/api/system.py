@@ -16,6 +16,7 @@ from backend.database.models import Camera, Event, AuditLog, User, Vehicle
 from backend.services.video_processor import camera_manager
 from backend.services.alert_service import alert_broadcaster
 from backend.services.evidence_service import EvidenceService
+from backend.utils.text import put_overlay_text
 
 router = APIRouter(prefix="/system", tags=["System & Diagnostics"])
 
@@ -103,8 +104,8 @@ def execute_red_team_test(req: RedTeamTestRequest, db: Session = Depends(get_db)
         else:
             raw_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             raw_frame[:] = (25, 30, 38)
-            cv2.putText(raw_frame, f"ADVERSARIAL STRESS INJECTION // {cam_id}", (40, 240),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            put_overlay_text(raw_frame, f"ADVERSARIAL STRESS INJECTION // {cam_id}", (40, 240),
+                             cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2)
 
         # Capture snapshot with SHA-256 integrity hash
         evidence_result = EvidenceService.capture_snapshot(

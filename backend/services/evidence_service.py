@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from backend.config import BASE_DIR, EVIDENCE_DIR
+from backend.utils.text import put_overlay_text
 
 class EvidenceService:
     @staticmethod
@@ -54,8 +55,8 @@ class EvidenceService:
         line1 = f"IBVAP EVIDENCE LEDGER | {event_id} | {camera_id} - {camera_location} | {timestamp_str}"
         line2 = f"ALERT: {event_type.upper()} | TARGET: {track_label} | RISK: {risk_score}/100 ({risk_level}) | SHA-256 SEALED"
 
-        cv2.putText(stamped_frame, line1, (16, h - 24), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (220, 220, 220), 1, cv2.LINE_AA)
-        cv2.putText(stamped_frame, line2, (16, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.42, risk_color, 1, cv2.LINE_AA)
+        put_overlay_text(stamped_frame, line1, (16, h - 24), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (220, 220, 220), 1, cv2.LINE_AA)
+        put_overlay_text(stamped_frame, line2, (16, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.42, risk_color, 1, cv2.LINE_AA)
 
         filename = f"{event_id}_{int(now.timestamp())}.jpg"
         file_path = EVIDENCE_DIR / filename
@@ -130,7 +131,7 @@ class EvidenceService:
 
         # Draw synthetic bounding box
         cv2.rectangle(img, (260, 160), (360, 360), (0, 0, 255), 2)
-        cv2.putText(img, track_label, (260, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        put_overlay_text(img, track_label, (260, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (0, 0, 255), 2, bg_color=(20, 20, 25), padding=3)
 
         return cls.save_keyframe(
             frame=img,

@@ -18,6 +18,7 @@ from backend.ai.risk_engine import RiskEngine
 from backend.ai.anpr import ANPREngine
 from backend.services.event_writer import event_writer
 from backend.services.alert_service import alert_broadcaster
+from backend.utils.text import put_overlay_text, to_overlay_text
 
 logger = logging.getLogger("VideoProcessor")
 
@@ -288,17 +289,21 @@ class VideoProcessor:
                 color = (0, 0, 255) if obj.is_in_zone else (0, 255, 0)
                 cv2.rectangle(overlay, (bx1, by1), (bx2, by2), color, 2)
                 label = f"{obj.label} ({obj.confidence:.2f})"
-                cv2.putText(overlay, label, (bx1, max(18, by1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
+                label_y = max(16, by1 - 6)
+                put_overlay_text(overlay, label, (bx1, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.40, color, 1, bg_color=(15, 18, 24), padding=2)
 
                 # Breadcrumb trajectory
                 if len(obj.history) > 1:
                     pts = np.array(obj.history, dtype=np.int32).reshape((-1, 1, 2))
                     cv2.polylines(overlay, [pts], False, color, 1)
 
-            # Tactical HUD Stamp
-            cv2.rectangle(overlay, (8, 8), (240, 52), (18, 18, 22), -1)
-            cv2.putText(overlay, f"CAM: {self.camera_id} | {lighting_mode}", (14, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 255, 255), 1)
-            cv2.putText(overlay, f"FPS: {self.latest_telemetry['fps']:.1f} | TRACKS: {len(tracked_objects)}", (14, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 255, 0), 1)
+            # Tactical HUD Stamp anchored top-left with background card
+            hud_line1 = f"CAM: {self.camera_id} | {lighting_mode}"
+            hud_line2 = f"FPS: {self.latest_telemetry['fps']:.1f} | TRACKS: {len(tracked_objects)}"
+            cv2.rectangle(overlay, (8, 8), (220, 50), (15, 18, 24), -1)
+            cv2.rectangle(overlay, (8, 8), (220, 50), (45, 55, 72), 1)
+            put_overlay_text(overlay, hud_line1, (14, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 240, 255), 1)
+            put_overlay_text(overlay, hud_line2, (14, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 255, 136), 1)
 
             self.latest_frame = overlay
             t_overlay = time.perf_counter() - t0
