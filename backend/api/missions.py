@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
 from backend.database.models import User
-from backend.services.mission_service import MissionService
+from backend.services.mission_service import MissionService, InvalidStateTransitionError
 from backend.api.auth import get_current_user
 
 router = APIRouter(prefix="/missions", tags=["Phase 14: Mission Orchestration"])
@@ -107,8 +107,10 @@ def update_mission_status(mission_id: str, req: StatusUpdateRequest, db: Session
         return MissionService.update_mission_status(
             db, mission_id, req.status, operator_username=req.operator_username, notes=req.notes
         )
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.patch("/{mission_id}/assign")
 def assign_operator(mission_id: str, req: AssignOperatorRequest, db: Session = Depends(get_db)):
@@ -118,17 +120,23 @@ def assign_operator(mission_id: str, req: AssignOperatorRequest, db: Session = D
             db, mission_id, req.assigned_operator, acting_user=req.acting_user or "Admin"
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/{mission_id}/timeline")
 def get_mission_timeline(mission_id: str, db: Session = Depends(get_db)):
     """Retrieves chronological mission timeline with exact timestamps."""
-    return MissionService.get_mission_timeline(db, mission_id)
+    try:
+        return MissionService.get_mission_timeline(db, mission_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/{mission_id}/context")
 def get_mission_context(mission_id: str, db: Session = Depends(get_db)):
     """Retrieves aggregated operational context (cameras, targets, sensors, evidence)."""
-    return MissionService.get_mission_context(db, mission_id)
+    try:
+        return MissionService.get_mission_context(db, mission_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/{mission_id}/recommendations")
 def get_mission_recommendations(mission_id: str, db: Session = Depends(get_db)):
@@ -148,6 +156,8 @@ def approve_mission_response(mission_id: str, req: Optional[ApprovalRequest] = N
         return MissionService.approve_mission_response(
             db, mission_id, operator_username=op, notes=notes, action_type=action
         )
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -160,6 +170,8 @@ def reject_mission_response(mission_id: str, req: Optional[RejectionRequest] = N
         return MissionService.reject_mission_response(
             db, mission_id, operator_username=op, notes=notes
         )
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -173,6 +185,8 @@ def escalate_mission(mission_id: str, req: Optional[EscalationRequest] = None, d
         return MissionService.escalate_mission(
             db, mission_id, operator_username=op, target_level=lvl, reason=reason
         )
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -186,10 +200,15 @@ def resolve_mission(mission_id: str, req: Optional[ResolutionRequest] = None, db
         return MissionService.resolve_mission(
             db, mission_id, resolution_type=res_type, notes=notes, operator_username=op
         )
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/{mission_id}/health")
 def get_mission_health(mission_id: str, db: Session = Depends(get_db)):
     """Returns live health check of all integrated subsystems."""
-    return MissionService.get_mission_health(db, mission_id)
+    try:
+        return MissionService.get_mission_health(db, mission_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

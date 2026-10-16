@@ -200,14 +200,29 @@ class EdgeNode(Base):
     storage_status = Column(String(32), default="HEALTHY")
     storage_free_gb = Column(Float, default=450.0)
     network_status = Column(String(32), default="CONNECTED")
+    last_heartbeat = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_sync = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class IntelligenceRecord(Base):
     __tablename__ = "intelligence_records"
 
     id = Column(String(64), primary_key=True, default=lambda: f"INTEL-{uuid.uuid4().hex[:6].upper()}")
+    # Federated intelligence fields (Phase 13)
+    event_id = Column(String(64), nullable=True, index=True)
+    edge_node_id = Column(String(64), ForeignKey("edge_nodes.id"), nullable=True)
+    camera_id = Column(String(64), nullable=True)
+    event_type = Column(String(128), nullable=True)
+    object_type = Column(String(64), default="person")
+    tracking_reference = Column(Integer, nullable=True)
+    risk_level = Column(String(32), default="MEDIUM")
+    risk_score = Column(Integer, default=50)
+    location_reference = Column(String(256), nullable=True)
+    evidence_hash = Column(String(64), nullable=True)
+    sync_state = Column(String(32), default="SYNCED")   # PENDING_SYNC | SYNCED
+    idempotency_key = Column(String(128), nullable=True, unique=True)
+    # Legacy fields
     sector_id = Column(String(64), ForeignKey("sectors.id"), nullable=True)
-    title = Column(String(256), nullable=False)
+    title = Column(String(256), nullable=False, default="Intelligence Record")
     description = Column(Text, nullable=True)
     threat_level = Column(String(32), default="MEDIUM")
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))

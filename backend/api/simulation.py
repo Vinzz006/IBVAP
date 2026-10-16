@@ -170,15 +170,38 @@ def trigger_digital_twin_event(req: TriggerEventRequest, db: Session = Depends(g
     }
 
 @router.post("/reset")
-def reset_digital_twin_simulation():
-    """Resets all Digital Twin simulation entities, breaches, and simulated failures."""
+def reset_digital_twin_simulation(db: Session = Depends(get_db)):
+    """Resets all Digital Twin simulation entities, breaches, and simulated records from database."""
     twin_state.entities.clear()
     twin_state.camera_failures.clear()
     twin_state.network_offline = False
     twin_state.sensor_anomalies.clear()
     twin_state.active_breaches.clear()
 
+    # Clean up simulated events
+    deleted_events = db.query(Event).filter(
+        (Event.id.like("EVT-SIM-%")) |
+        (Event.id.like("EVT-RT-%")) |
+        (Event.event_type.like("%[SIMULATION]%")) |
+        (Event.notes.like("%Simulation%")) |
+        (Event.notes.like("%Stress Test%"))
+    ).delete(synchronize_session=False)
+
+    # Clean up demo missions
+    from backend.database.models import Mission
+    deleted_missions = db.query(Mission).filter(Mission.id.like("MSN-DEMO-%")).delete(synchronize_session=False)
+
+    audit = AuditLog(
+        username="SIMULATION_CONTROLLER",
+        action="SIMULATION_RESET",
+        details=f"Reset simulation state. Removed {deleted_events} simulated events and {deleted_missions} demo missions."
+    )
+    db.add(audit)
+    db.commit()
+
     return {
         "message": "Digital Twin simulation reset to baseline state",
-        "status": "RESET_SUCCESS"
+        "status": "RESET_SUCCESS",
+        "deleted_simulated_events": deleted_events,
+        "deleted_demo_missions": deleted_missions
     }
